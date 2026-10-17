@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="fr" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>CCLS Aïn M'lila | Gestion et Suivi des Semences</title>
+
+    <!-- PWA -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#1F497D">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="CCLS Semences">
+    <link rel="apple-touch-icon" href="icons/icon-180.png">
+    <link rel="icon" type="image/png" href="icons/icon-192.png">
+
+    <!-- Bootstrap 5 & FontAwesome & SheetJS (copies locales: fonctionne hors ligne) -->
+    <link rel="stylesheet" href="lib/bootstrap.min.css">
+    <link rel="stylesheet" href="lib/fa/css/all.min.css">
+    <script src="lib/xlsx.full.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1F497D;
+            background-image: linear-gradient(rgba(0, 0, 0, 0.65), rgba(0, 0, 0, 0.65)), url('https://images.unsplash.com/photo-1574323347407-f5e1ad6d020b?q=80&w=1600');
+            background-repeat: no-repeat;
+            background-position: center center;
+            background-attachment: fixed;
+            background-size: cover;
+            color: #333;
+            min-height: 100vh;
+        }
+
+        /* Login Screen */
+        #login-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(31, 73, 125, 0.95);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            padding: 16px;
+        }
+        .login-card {
+            background: white;
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
+
+        .navbar-custom {
+            background-color: rgba(31, 73, 125, 0.95);
+            backdrop-filter: blur(5px);
+        }
+        .card-custom {
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            background: rgba(255, 255, 255, 0.95);
+        }
+        .table-custom th {
+            background-color: #1F497D !important;
+            color: white !important;
+            text-align: center;
+            vertical-align: middle;
+            font-size: 0.9rem;
+        }
+        .table-custom td {
+            vertical-align: middle;
+            text-align: center;
+            font-size: 0.9rem;
+        }
+        .badge-type {
+            font-size: 0.85rem;
+            padding: 6px 12px;
+        }
+        .input-inline {
+            width: 95px;
+            text-align: center;
+            font-weight: bold;
+            border: 1px solid #ced4da;
+            border-radius: 6px;
+            padding: 4px;
+        }
+        .input-inline:focus {
+            border-color: #1F497D;
+            box-shadow: 0 0 5px rgba(31, 73, 125, 0.5);
+            outline: none;
+        }
+        .centre-group-header {
+            background-color: #e2ecf8 !important;
+            font-weight: bold;
+            text-align: left !important;
+            color: #1F497D;
+        }
+        #install-btn { display: none; }
+        @media (max-width: 767px) {
+            .container-fluid.px-4 { padding-left: 10px !important; padding-right: 10px !important; }
+            .navbar-brand { font-size: 0.95rem; }
+            .login-card { padding: 28px 20px; }
+        }
+        @media print {
+            .no-print {
+                display: none !important;
+            }
+            body {
+                background: white !important;
+            }
+            .card-custom {
+                box-shadow: none;
+                background: white !important;
+            }
+            .input-inline {
+                border: none !important;
+                background: transparent !important;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Login Screen -->
+    <div id="login-container">
+        <div class="login-card">
+            <h3 class="text-primary mb-3"><i class="fa-solid fa-lock me-2"></i>Connexion</h3>
+            <p class="text-muted mb-4">Coopérative des Céréales et Légumes Secs (CCLS Aïn M'lila)</p>
+            <form id="loginForm" onsubmit="handleLogin(event)">
+                <div class="mb-3 text-start">
+                    <label class="form-label fw-bold">Mot de passe</label>
+                    <input type="password" id="login-password" class="form-control" placeholder="Entrez le mot de passe..." required>
+                </div>
+                <button type="submit" class="btn btn-primary w-100 py-2"><i class="fa-solid fa-key me-1"></i> Se connecter</button>
+                <div id="login-error" class="text-danger mt-2" style="display: none;">Mot de passe incorrect! (Par défaut: 123)</div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Main Application Container -->
+    <div id="app-container" style="display: none;">
+
+        <!-- Navbar -->
+        <nav class="navbar navbar-dark navbar-custom no-print mb-4 shadow">
+            <div class="container-fluid">
+                <span class="navbar-brand mb-0 h1 d-flex align-items-center">
+                    <i class="fa-solid fa-wheat-awn text-warning me-2 fs-3"></i>
+                    <div>
+                        <div class="fw-bold">CCLS Aïn M'lila - Coopérative des Céréales et Légumes Secs</div>
+                        <small class="text-light opacity-75 fs-6">Système de Gestion et Suivi du Stock de Semences</small>
+                    </div>
+                </span>
+                <div class="mt-2 mt-md-0">
+                    <button id="install-btn" class="btn btn-warning btn-sm me-2 mb-1"><i class="fa-solid fa-download me-1"></i> Installer l'application</button>
+                    <label class="btn btn-light btn-sm me-2 mb-1" style="cursor: pointer;">
+                        <i class="fa-solid fa-file-excel text-success me-1"></i> Importer Excel
+                        <input type="file" id="excelFile" accept=".xlsx, .xls, .csv" onchange="importFromExcel(event)" style="display: none;">
+                    </label>
+                    <button class="btn btn-light btn-sm me-2 mb-1" onclick="exportToExcel()"><i class="fa-solid fa-file-export text-primary me-1"></i> Exporter Excel</button>
+                    <button class="btn btn-light btn-sm me-2 mb-1" onclick="window.print()"><i class="fa-solid fa-print text-dark me-1"></i> Imprimer</button>
+                    <button class="btn btn-outline-light btn-sm mb-1" onclick="logout()"><i class="fa-solid fa-right-from-bracket me-1"></i> Déconnexion</button>
+                </div>
+            </div>
+        </nav>
+
+        <div class="container-fluid px-4">
+
+            <!-- Summary Cards -->
+            <div class="row no-print">
+                <div class="col-6 col-md-3">
+                    <div class="card card-custom bg-primary text-white p-3">
+                        <h6 class="text-white-50">Total Objectif</h6>
+                        <h3 id="card-obj">0</h3>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="card card-custom bg-success text-white p-3">
+                        <h6 class="text-white-50">Total Entrées</h6>
+                        <h3 id="card-entree">0</h3>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="card card-custom bg-warning text-dark p-3">
+                        <h6>Total Sorties</h6>
+                        <h3 id="card-sortie">0</h3>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="card card-custom bg-info text-white p-3">
+                        <h6 class="text-white-50">Stock Reste</h6>
+                        <h3 id="card-reste">0</h3>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Add Entry Form -->
+            <div class="card card-custom no-print p-4 mb-4">
+                <h5 class="card-title mb-3 text-primary"><i class="fa-solid fa-plus-circle me-2"></i>Ajouter une nouvelle variété / ligne au centre</h5>
+                <form id="addForm" class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold">Nom du Centre / Magasin</label>
+                        <select id="input-centre" class="form-select" required>
+                            <option value="">Sélectionnez un centre...</option>
+                            <option value="HANGAR AIN FAKROUN">HANGAR AIN FAKROUN</option>
+                            <option value="HANGAR BIR CHOUHADA">HANGAR BIR CHOUHADA</option>
+                            <option value="HANGAR SOUK NAAMANE">HANGAR SOUK NAAMANE</option>
+                            <option value="STAT. DE SEMENCES AIN M'LILA">STAT. DE SEMENCES AIN M'LILA</option>
+                            <option value="STAT. DE SEMENCES OULED HAMLA">STAT. DE SEMENCES OULED HAMLA</option>
+                            <option value="VOUTE AIN KERCHA">VOUTE AIN KERCHA</option>
+                            <option value="VOUTE SIGUS">VOUTE SIGUS</option>
+                            <option value="C P BSL">C P BSL</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label fw-bold">Type de Céréale / Légume</label>
+                        <select id="input-type" class="form-select" required onchange="updateVarietiesOptions()">
+                            <option value="Blé tendre">Blé tendre</option>
+                            <option value="Blé dur">Blé dur</option>
+                            <option value="Orge">Orge</option>
+                            <option value="Légumineuses sèches">Légumineuses sèches</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label fw-bold">Variété / Semence</label>
+                        <select id="input-variete-select" class="form-select" required onchange="checkCustomVariety()">
+                        </select>
+                        <input type="text" id="input-variete-custom" class="form-control mt-2" placeholder="Saisir la nouvelle variété..." style="display: none;">
+                    </div>
+                    <div class="col-md-1">
+                        <label class="form-label fw-bold">Objectif</label>
+                        <input type="number" id="input-obj" class="form-control" value="0">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label fw-bold">Entrée</label>
+                        <input type="number" id="input-entree" class="form-control" value="0">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label fw-bold">Sortie</label>
+                        <input type="number" id="input-sortie" class="form-control" value="0">
+                    </div>
+                    <div class="col-12 text-end">
+                        <button type="submit" class="btn btn-primary px-4"><i class="fa-solid fa-plus me-1"></i> Ajouter au tableau</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Search & Filter -->
+            <div class="card card-custom no-print p-3 mb-3">
+                <div class="row g-3 align-items-center">
+                    <div class="col-md-4">
+                        <input type="text" id="searchBox" class="form-control" placeholder="Rechercher par centre ou variété..." onkeyup="renderTable()">
+                    </div>
+                    <div class="col-md-3">
+                        <select id="filterType" class="form-select" onchange="renderTable()">
+                            <option value="">Tous les types</option>
+                            <option value="Blé tendre">Blé tendre</option>
+                            <option value="Blé dur">Blé dur</option>
+                            <option value="Orge">Orge</option>
+                            <option value="Légumineuses sèches">Légumineuses sèches</option>
+                        </select>
+                    </div>
+                    <div class="col-md-5 text-start">
+                        <small class="text-success fw-bold"><i class="fa-solid fa-circle-info me-1"></i> Note: Vous pouvez modifier les valeurs directement dans le tableau, le Reste se calcule automatiquement!</small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Grouped Table -->
+            <div class="card card-custom p-3">
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover table-custom" id="seedTable">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Magasins / Centres</th>
+                                <th>Type de Grain</th>
+                                <th>Variété / Semence</th>
+                                <th>Objectif</th>
+                                <th>Entrée</th>
+                                <th>Sortie</th>
+                                <th>Reste</th>
+                                <th class="no-print">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-body">
+                        </tbody>
+                        <tfoot>
+                            <tr class="table-secondary fw-bold" style="background-color: #e9ecef;">
+                                <td colspan="4" class="text-start ps-3">Total Général</td>
+                                <td id="foot-obj">0</td>
+                                <td id="foot-entree">0</td>
+                                <td id="foot-sortie">0</td>
+                                <td id="foot-reste">0</td>
+                                <td class="no-print"></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        const DEFAULT_PASSWORD = "123";
+
+        function handleLogin(e) {
+            e.preventDefault();
+            const pass = document.getElementById("login-password").value;
+            if (pass === DEFAULT_PASSWORD) {
+                document.getElementById("login-container").style.display = "none";
+                document.getElementById("app-container").style.display = "block";
+                renderTable();
+            } else {
+                document.getElementById("login-error").style.display = "block";
+            }
+        }
+
+        function logout() {
+            document.getElementById("login-container").style.display = "flex";
+            document.getElementById("app-container").style.display = "none";
+            document.getElementById("login-password").value = "";
+        }
+
+        const varietiesMap = {
+            "Blé tendre": ["Arz", "Arz R2", "Tiddis", "Tiddis R2", "ORD", "HD 1220", "Autre variété..."],
+            "Blé dur": ["Amar 06 R1", "Boussellam R1", "Boussellam R2", "GTA R3", "Simeto R1", "Vitron R1", "ITCC G3", "Waha R1", "Waha R2", "Autre variété..."],
+            "Orge": ["Saida R2", "Saida R3", "Fouara R3", "Orge Reg", "Orge Class", "Autre variété..."],
+            "Légumineuses sèches": ["Lentilles", "Pois Chiches", "Fèves", "Pois Cassés", "Autre variété..."]
+        };
+
+        let seedData = JSON.parse(localStorage.getItem("seedData_FR")) || [
+            { centre: "HANGAR AIN FAKROUN", type: "Blé tendre", variete: "Arz R2", obj: 1300, entree: 1311, sortie: 711 },
+            { centre: "HANGAR AIN FAKROUN", type: "Blé dur", variete: "Boussellam R1", obj: 300, entree: 300, sortie: 100 },
+            { centre: "HANGAR AIN FAKROUN", type: "Orge", variete: "Saida R2", obj: 500, entree: 1000, sortie: 400 },
+
+            { centre: "HANGAR BIR CHOUHADA", type: "Blé tendre", variete: "Arz R2", obj: 1300, entree: 1365, sortie: 765 },
+            { centre: "HANGAR BIR CHOUHADA", type: "Blé dur", variete: "Boussellam R1", obj: 300, entree: 322, sortie: 300 },
+            { centre: "HANGAR BIR CHOUHADA", type: "Orge", variete: "Saida R2", obj: 200, entree: 752, sortie: 400 },
+
+            { centre: "HANGAR SOUK NAAMANE", type: "Blé tendre", variete: "Arz R2", obj: 1000, entree: 951, sortie: 551 },
+            { centre: "HANGAR SOUK NAAMANE", type: "Blé dur", variete: "Boussellam R1", obj: 100, entree: 88, sortie: 100 },
+
+            { centre: "STAT. DE SEMENCES AIN M'LILA", type: "Blé tendre", variete: "Arz R2", obj: 1833, entree: 1818, sortie: 1018 },
+            { centre: "STAT. DE SEMENCES AIN M'LILA", type: "Blé dur", variete: "Boussellam R1", obj: 386, entree: 360, sortie: 386 },
+            { centre: "STAT. DE SEMENCES AIN M'LILA", type: "Légumineuses sèches", variete: "Lentilles", obj: 150, entree: 150, sortie: 50 },
+
+            { centre: "VOUTE AIN KERCHA", type: "Blé tendre", variete: "Arz R2", obj: 1200, entree: 1261, sortie: 661 },
+
+            { centre: "VOUTE SIGUS", type: "Blé tendre", variete: "Arz R2", obj: 1000, entree: 927, sortie: 527 }
+        ];
+
+        function saveData() {
+            localStorage.setItem("seedData_FR", JSON.stringify(seedData));
+        }
+
+        function updateValue(index, field, value) {
+            seedData[index][field] = Number(value) || 0;
+            saveData();
+            renderTable();
+        }
+
+        function updateVarietiesOptions() {
+            const grainType = document.getElementById("input-type").value;
+            const selectVariete = document.getElementById("input-variete-select");
+            selectVariete.innerHTML = "";
+            const options = varietiesMap[grainType] || ["Autre variété..."];
+            options.forEach(opt => {
+                const el = document.createElement("option");
+                el.value = opt;
+                el.innerText = opt;
+                selectVariete.appendChild(el);
+            });
+            checkCustomVariety();
+        }
+
+        function checkCustomVariety() {
+            const selectVariete = document.getElementById("input-variete-select");
+            const customInput = document.getElementById("input-variete-custom");
+            if (selectVariete.value === "Autre variété...") {
+                customInput.style.display = "block";
+                customInput.required = true;
+            } else {
+                customInput.style.display = "none";
+                customInput.required = false;
+            }
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById("table-body");
+            const searchQuery = document.getElementById("searchBox").value.toLowerCase();
+            const filterType = document.getElementById("filterType").value;
+
+            seedData.sort((a, b) => a.centre.localeCompare(b.centre));
+
+            tbody.innerHTML = "";
+            let totalObj = 0, totalEntree = 0, totalSortie = 0, totalReste = 0;
+            let displayIndex = 1;
+            let lastCentre = "";
+
+            seedData.forEach((row, index) => {
+                const matchSearch = row.centre.toLowerCase().includes(searchQuery) || row.variete.toLowerCase().includes(searchQuery);
+                const matchType = !filterType || row.type === filterType;
+
+                if (matchSearch && matchType) {
+                    const reste = Number(row.entree) - Number(row.sortie);
+                    totalObj += Number(row.obj);
+                    totalEntree += Number(row.entree);
+                    totalSortie += Number(row.sortie);
+                    totalReste += reste;
+
+                    if (row.centre !== lastCentre) {
+                        lastCentre = row.centre;
+                        const headerTr = document.createElement("tr");
+                        headerTr.className = "centre-group-header";
+                        headerTr.innerHTML = `<td colspan="9" class="text-start ps-3 py-2 fw-bold"><i class="fa-solid fa-warehouse text-primary me-2"></i> ${row.centre}</td>`;
+                        tbody.appendChild(headerTr);
+                    }
+
+                    const tr = document.createElement("tr");
+                    tr.innerHTML = `
+                        <td>${displayIndex++}</td>
+                        <td class="text-muted small">${row.centre}</td>
+                        <td><span class="badge bg-secondary badge-type">${row.type}</span></td>
+                        <td><span class="badge bg-info text-dark badge-type">${row.variete}</span></td>
+                        <td>
+                            <input type="number" class="input-inline form-control form-control-sm d-inline" value="${row.obj}" onchange="updateValue(${index}, 'obj', this.value)">
+                        </td>
+                        <td>
+                            <input type="number" class="input-inline text-success form-control form-control-sm d-inline" value="${row.entree}" onchange="updateValue(${index}, 'entree', this.value)">
+                        </td>
+                        <td>
+                            <input type="number" class="input-inline text-danger form-control form-control-sm d-inline" value="${row.sortie}" onchange="updateValue(${index}, 'sortie', this.value)">
+                        </td>
+                        <td>
+                            <span class="badge ${reste >= 0 ? 'bg-success' : 'bg-danger'} badge-type">${reste.toLocaleString()}</span>
+                        </td>
+                        <td class="no-print">
+                            <button class="btn btn-sm btn-outline-danger" onclick="deleteRow(${index})" title="Supprimer la ligne"><i class="fa-solid fa-trash"></i></button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                }
+            });
+
+            document.getElementById("foot-obj").innerText = totalObj.toLocaleString();
+            document.getElementById("foot-entree").innerText = totalEntree.toLocaleString();
+            document.getElementById("foot-sortie").innerText = totalSortie.toLocaleString();
+            document.getElementById("foot-reste").innerText = totalReste.toLocaleString();
+
+            document.getElementById("card-obj").innerText = totalObj.toLocaleString();
+            document.getElementById("card-entree").innerText = totalEntree.toLocaleString();
+            document.getElementById("card-sortie").innerText = totalSortie.toLocaleString();
+            document.getElementById("card-reste").innerText = totalReste.toLocaleString();
+        }
+
+        document.getElementById("addForm").addEventListener("submit", function(e) {
+            e.preventDefault();
+            const selectVariete = document.getElementById("input-variete-select").value;
+            const customVariete = document.getElementById("input-variete-custom").value;
+            const finalVariete = (selectVariete === "Autre variété...") ? customVariete : selectVariete;
+
+            const newRow = {
+                centre: document.getElementById("input-centre").value,
+                type: document.getElementById("input-type").value,
+                variete: finalVariete,
+                obj: Number(document.getElementById("input-obj").value) || 0,
+                entree: Number(document.getElementById("input-entree").value) || 0,
+                sortie: Number(document.getElementById("input-sortie").value) || 0
+            };
+            seedData.push(newRow);
+            saveData();
+            renderTable();
+            this.reset();
+            updateVarietiesOptions();
+        });
+
+        function deleteRow(index) {
+            if (confirm("Voulez-vous vraiment supprimer cette ligne?")) {
+                seedData.splice(index, 1);
+                saveData();
+                renderTable();
+            }
+        }
+
+        function exportToExcel() {
+            const table = document.getElementById("seedTable");
+            const wb = XLSX.utils.table_to_book(table, {sheet: "Gestion_Semences"});
+            XLSX.writeFile(wb, "CCLS_Ain_Mlila_Gestion_Semences.xlsx");
+        }
+
+        function importFromExcel(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, {type: 'array'});
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                const json = XLSX.utils.sheet_to_json(worksheet);
+                if (json.length > 0) {
+                    seedData = json.map(item => ({
+                        centre: item["Magasins / Centres"] || item["centre"] || "Nouveau Centre",
+                        type: item["Type de Grain"] || item["type"] || "Blé tendre",
+                        variete: item["Variété / Semence"] || item["variete"] || "Variété",
+                        obj: Number(item["Objectif"] || item["obj"] || 0),
+                        entree: Number(item["Entrée"] || item["entree"] || 0),
+                        sortie: Number(item["Sortie"] || item["sortie"] || 0)
+                    }));
+                    saveData();
+                    renderTable();
+                    alert("Fichier Excel importé avec succès!");
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        updateVarietiesOptions();
+
+        /* ===== PWA: service worker + bouton d'installation ===== */
+        if ("serviceWorker" in navigator) {
+            window.addEventListener("load", () => {
+                navigator.serviceWorker.register("sw.js").catch(err => console.warn("SW:", err));
+            });
+        }
+        let deferredPrompt = null;
+        window.addEventListener("beforeinstallprompt", (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            document.getElementById("install-btn").style.display = "inline-block";
+        });
+        document.getElementById("install-btn").addEventListener("click", async () => {
+            if (!deferredPrompt) return;
+            deferredPrompt.prompt();
+            await deferredPrompt.userChoice;
+            deferredPrompt = null;
+            document.getElementById("install-btn").style.display = "none";
+        });
+        window.addEventListener("appinstalled", () => {
+            document.getElementById("install-btn").style.display = "none";
+        });
+    </script>
+</body>
+</html>
