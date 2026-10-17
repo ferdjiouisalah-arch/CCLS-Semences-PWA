@@ -1,0 +1,17 @@
+{
+  "name": "CCLS Aïn M'lila - Gestion des Semences",
+  "short_name": "CCLS Semences",
+  "description": "Gestion et suivi du stock de semences - CCLS Aïn M'lila",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#1F497D",
+  "theme_color": "#1F497D",
+  "lang": "fr",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
